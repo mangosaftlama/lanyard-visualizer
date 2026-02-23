@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { useTimestamp } from "@vueuse/core"
-import { ref, reactive, computed, watch } from "vue"
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from "vue"
 import { useRoute } from "vue-router"
 
 // Components
@@ -19,6 +19,11 @@ const { query } = useRoute()
 // Reactive objects
 const imageError = reactive({ large: false, small: false })
 const timestamp = useTimestamp()
+const titleContainer = ref<HTMLElement | null>(null)
+const titleContent = ref<HTMLElement | null>(null)
+const isTitleOverflowing = ref(false)
+const titleOverflowDistance = ref(0)
+let titleResizeObserver: ResizeObserver | null = null
 
 // Props
 const props = defineProps({
@@ -73,6 +78,46 @@ watch(
   },
 )
 
+watch(
+  () => [props.name, props.trackId, props.isSpotify],
+  async () => {
+    await nextTick()
+    syncTitleOverflow()
+  },
+)
+
+const syncTitleOverflow = () => {
+  if (!titleContainer.value || !titleContent.value) {
+    isTitleOverflowing.value = false
+    titleOverflowDistance.value = 0
+    return
+  }
+
+  const containerWidth = titleContainer.value.clientWidth
+  const contentWidth = titleContent.value.scrollWidth
+  const overflow = Math.max(0, contentWidth - containerWidth)
+  isTitleOverflowing.value = overflow > 1
+  titleOverflowDistance.value = overflow
+}
+
+onMounted(async () => {
+  await nextTick()
+  syncTitleOverflow()
+
+  if (typeof ResizeObserver !== "undefined") {
+    titleResizeObserver = new ResizeObserver(syncTitleOverflow)
+    if (titleContainer.value) titleResizeObserver.observe(titleContainer.value)
+    if (titleContent.value) titleResizeObserver.observe(titleContent.value)
+  } else {
+    window.addEventListener("resize", syncTitleOverflow)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (titleResizeObserver) titleResizeObserver.disconnect()
+  else window.removeEventListener("resize", syncTitleOverflow)
+})
+
 // Computed methods
 const getImageUrl = computed(() => {
   const object = {
@@ -126,6 +171,14 @@ const getTime = computed(() => {
     return `${timeLeftArray.map(mapFunction).join(":")} left`
   }
 })
+
+const titleMarqueeStyle = computed(() => {
+  if (!props.isSpotify || !isTitleOverflowing.value) return {}
+  return {
+    "--title-scroll-distance": `-${titleOverflowDistance.value}px`,
+    "--title-scroll-duration": `${Math.max(9, titleOverflowDistance.value / 16).toFixed(2)}s`,
+  } as Record<string, string>
+})
 </script>
 
 <template>
@@ -157,20 +210,35 @@ const getTime = computed(() => {
         />
       </div>
 
-      <div class="space-y-1">
-        <a
-          v-if="isSpotify && trackId"
-          :href="`https://open.spotify.com/track/${trackId}`"
-          target="_blank"
-          rel="noreferrer"
-          title="Open on Spotify"
-          class="cursor-pointer font-semibold text-lg leading-tight truncate hover:underline"
-          >{{ name }}</a
-        >
+      <div class="space-y-1 min-w-0 flex-1">
+        <div ref="titleContainer" class="overflow-hidden">
+          <a
+            v-if="isSpotify && trackId"
+            ref="titleContent"
+            :href="`https://open.spotify.com/track/${trackId}`"
+            target="_blank"
+            rel="noreferrer"
+            title="Open on Spotify"
+            :class="[
+              'block cursor-pointer font-semibold text-lg leading-tight whitespace-nowrap hover:underline',
+              props.isSpotify && isTitleOverflowing ? 'card-title-marquee' : 'truncate',
+            ]"
+            :style="titleMarqueeStyle"
+            >{{ name }}</a
+          >
 
-        <h1 v-else class="font-semibold text-lg leading-tight truncate">
-          {{ name }}
-        </h1>
+          <h1
+            v-else
+            ref="titleContent"
+            :class="[
+              'font-semibold text-lg leading-tight whitespace-nowrap',
+              props.isSpotify && isTitleOverflowing ? 'card-title-marquee' : 'truncate',
+            ]"
+            :style="titleMarqueeStyle"
+          >
+            {{ name }}
+          </h1>
+        </div>
 
         <h2 v-if="details" class="leading-tight opacity-50 line-clamp-2">
           {{ isSpotify ? "by" : "" }} {{ details }}
@@ -193,3 +261,34 @@ const getTime = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.card-title-marquee {
+  display: inline-block;
+  padding-right: 1rem;
+  will-change: transform;
+  animation: title-marquee var(--title-scroll-duration, 10s) linear infinite;
+}
+
+@keyframes title-marquee {
+  0%,
+  25% {
+    transform: translateX(0);
+  }
+  40%,
+  60% {
+    transform: translateX(var(--title-scroll-distance, 0));
+  }
+  75%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-title-marquee {
+    animation: none;
+    transform: none;
+  }
+}
+</style>
