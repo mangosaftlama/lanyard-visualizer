@@ -203,7 +203,7 @@ else {
           </div>
 
           <h1 class="font-semibold text-xl leading-tight">
-            {{ getUser.username }}
+            Jann
           </h1>
         </div>
       </div>
