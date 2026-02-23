@@ -4,6 +4,9 @@
   "license": "MIT",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
   "author": {
     "email": "eggsydev@gmail.com",
     "name": "Abdulbaki Dursun",
