@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { useWebSocket, useTitle, useFavicon } from "@vueuse/core"
-import { computed, ref, reactive, watchEffect } from "vue"
+import { computed, ref, reactive, watchEffect, onBeforeUnmount } from "vue"
 import { onBeforeRouteLeave } from "vue-router"
 
 // Components
@@ -11,6 +11,7 @@ import type { LanyardData } from "../types/lanyard"
 
 const socketLoaded = ref(false)
 const imageError = ref(false)
+const heartbeatInterval = ref<number | null>(null)
 
 const user = reactive({ error: false, data: {} }) as {
   error: boolean
@@ -111,25 +112,15 @@ else {
   const { send, close } = useWebSocket("wss://api.lanyard.rest/socket", {
     immediate: true,
 
-    // Attempt to reconnect once (max)
+    // Keep reconnecting with small backoff so users don't need manual reloads.
     autoReconnect: {
-      retries: 1,
-      delay: 1000,
-      onFailed() {
-        user.error = true
-      },
-    },
-
-    // Send heartbeat every 30 seconds
-    heartbeat: {
-      message: JSON.stringify({
-        op: 3,
-      }),
-      interval: 30000,
+      retries: Number.POSITIVE_INFINITY,
+      delay: 2000,
     },
 
     // Subscribe to the user WS is connected
     onConnected() {
+      user.error = false
       send(
         JSON.stringify({
           op: 2,
@@ -144,13 +135,47 @@ else {
 
     // Set the reactive object to data from Lanyard
     onMessage(_, { data }) {
-      const { t: type, d: status } = JSON.parse(data)
+      const payload = JSON.parse(data)
+      const { op, t: type, d: status } = payload
+
+      // Use server-provided heartbeat interval to prevent 30s disconnect loops.
+      if (op === 1 && typeof status?.heartbeat_interval === "number") {
+        if (heartbeatInterval.value) window.clearInterval(heartbeatInterval.value)
+        heartbeatInterval.value = window.setInterval(() => {
+          send(
+            JSON.stringify({
+              op: 3,
+            }),
+          )
+        }, status.heartbeat_interval)
+      }
+
       if (["INIT_STATE", "PRESENCE_UPDATE"].includes(type)) user.data = status
+    },
+
+    onDisconnected() {
+      socketLoaded.value = false
+    },
+
+    onError() {
+      socketLoaded.value = false
     },
   })
 
   // Close the WS connection on route change
   onBeforeRouteLeave(() => {
+    if (heartbeatInterval.value) {
+      window.clearInterval(heartbeatInterval.value)
+      heartbeatInterval.value = null
+    }
+    close()
+  })
+
+  onBeforeUnmount(() => {
+    if (heartbeatInterval.value) {
+      window.clearInterval(heartbeatInterval.value)
+      heartbeatInterval.value = null
+    }
     close()
   })
 }
@@ -159,31 +184,6 @@ else {
 <template>
   <Transition name="fade" mode="out-in">
     <div
-      v-if="user.error === true"
-      class="mx-auto space-y-4 h-screen flex flex-col justify-center text-center md:w-2/4"
-    >
-      <h1 class="font-bold text-white text-shadow-md text-3xl">
-        Couldn't Establish a WS Connection
-      </h1>
-
-      <p class="text-white/50 w-3/4 mx-auto">
-        Make sure you entered a valid Discord user ID and make sure the user is
-        in
-        <a
-          href="https://lanyard.rest/discord"
-          title="Join Discord"
-          class="underline underline-dashed underline-white/20"
-          rel="noreferrer"
-          target="_blank"
-          >Lanyard's Discord server</a
-        >. Reload the page after you join the Discord server or try with an user
-        ID who is already in Discord.
-      </p>
-
-    </div>
-
-    <div
-      v-else
       class="flex flex-col justify-center w-full mx-auto px-8 md:px-0 h-screen space-y-4 md:w-4/12 2xl:w-4/12"
     >
       <!-- Title -->
@@ -216,7 +216,6 @@ else {
         "
       >
         <Card
-          :class="isConnecting && 'animate-pulse'"
           :name="getPlayingStatus.name"
           :largeImage="getPlayingStatus.largeImage || ''"
           :smallImage="getPlayingStatus.smallImage || ''"
@@ -228,12 +227,8 @@ else {
         />
       </div>
 
-      <div v-else class="rounded-lg bg-white/5 text-white/30 text-sm p-4">
-        {{
-          isConnecting
-            ? "Trying to establish a WS connection..."
-            : "User is not playing anything."
-        }}
+      <div v-else-if="isConnecting === false" class="rounded-lg bg-white/5 text-white/30 text-sm p-4">
+        User is not playing anything.
       </div>
 
     </div>
