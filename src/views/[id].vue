@@ -60,11 +60,12 @@ const getPlayingStatus = computed(() => {
       album_art_url: image,
       track_id: trackId,
     } = user.data?.spotify || {}
+    const formattedArtist = artist?.split(";").map((name) => name.trim()).join(", ")
 
     return {
       timestamps,
       name: song,
-      details: artist,
+      details: formattedArtist,
       state: album,
       largeImage: image,
       spotify: true,
@@ -185,19 +186,8 @@ else {
       v-else
       class="flex flex-col justify-center w-full mx-auto px-8 md:px-0 h-screen space-y-4 md:w-4/12 2xl:w-4/12"
     >
-      <div
-        v-motion-fade
-        class="absolute -z-1 overflow-hidden pointer-events-none inset-0 grid place-items-center"
-      >
-        <img
-          src="/header-background.png"
-          alt="Stylistic header background"
-          class="object-cover h-full w-full max-w-screen max-h-screen opacity-10"
-        />
-      </div>
-
       <!-- Title -->
-      <div v-motion-fade :delay="300" class="flex items-center">
+      <div class="flex items-center">
         <div class="flex space-x-4 items-center">
           <div class="flex-shrink-0">
             <img
@@ -224,8 +214,6 @@ else {
           Object.values(getPlayingStatus || {}).filter((item) => item)?.length >
           0
         "
-        v-motion-fade
-        :delay="300"
       >
         <Card
           :class="isConnecting && 'animate-pulse'"

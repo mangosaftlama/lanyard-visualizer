@@ -3,7 +3,6 @@ import App from "./App.vue"
 import "./tailwind.css"
 
 import { createApp } from "vue"
-import { MotionPlugin } from "@vueuse/motion"
 import { createRouter, createWebHistory } from "vue-router"
 
 const router = createRouter({
@@ -11,4 +10,4 @@ const router = createRouter({
   routes,
 })
 
-createApp(App).use(router).use(MotionPlugin).mount("#app")
+createApp(App).use(router).mount("#app")
