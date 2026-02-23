@@ -1,10 +1,7 @@
 <script lang="ts" setup>
 import { useWebSocket, useTitle, useFavicon } from "@vueuse/core"
 import { computed, ref, reactive, watchEffect } from "vue"
-import { onBeforeRouteLeave, useRoute } from "vue-router"
-
-// Icons
-import IconBack from "~icons/tabler/arrow-left"
+import { onBeforeRouteLeave } from "vue-router"
 
 // Components
 import Card from "../components/Card.vue"
@@ -12,7 +9,6 @@ import Card from "../components/Card.vue"
 // Types
 import type { LanyardData } from "../types/lanyard"
 
-const route = useRoute()
 const socketLoaded = ref(false)
 const imageError = ref(false)
 
@@ -36,6 +32,7 @@ const isConnecting = computed(
 const getUser = computed(() => {
   const { username, id, avatar } = user.data?.discord_user || {}
   const fallbackImage = "https://i.imgur.com/sn7gwcA.png"
+  const normalizedUsername = username?.replace(/#0$/, "")
 
   const avatarUri = `https://cdn.discordapp.com/avatars/${id}/${avatar}.${
     avatar?.startsWith("a_") ? "gif" : "png"
@@ -43,7 +40,7 @@ const getUser = computed(() => {
 
   return {
     id,
-    username: username || "Loading",
+    username: normalizedUsername || "Loading",
     avatar: avatar && imageError.value === false ? avatarUri : fallbackImage,
   }
 })
@@ -106,9 +103,9 @@ watchEffect(() => {
 })
 
 // Connect to Lanyard socket when the app is mounted
-const userId = route.params.id
+const userId = "573876541822599199"
 
-if (userId === null || userId?.length < 17) user.error = true
+if (userId.length < 17) user.error = true
 else {
   const { send, close } = useWebSocket("wss://api.lanyard.rest/socket", {
     immediate: true,
@@ -182,16 +179,6 @@ else {
         ID who is already in Discord.
       </p>
 
-      <RouterLink
-        :to="{
-          query: route.query,
-          name: 'Home',
-        }"
-        class="btn w-max mx-auto"
-      >
-        <IconBack />
-        <span>Go back home</span>
-      </RouterLink>
     </div>
 
     <div
@@ -210,7 +197,7 @@ else {
       </div>
 
       <!-- Title -->
-      <div v-motion-fade :delay="300" class="flex items-center justify-between">
+      <div v-motion-fade :delay="300" class="flex items-center">
         <div class="flex space-x-4 items-center">
           <div class="flex-shrink-0">
             <img
@@ -229,14 +216,6 @@ else {
             {{ getUser.username }}
           </h1>
         </div>
-
-        <a
-          :href="`https://discord.com/users/${getUser.id}`"
-          target="_blank"
-          rel="noreferrer"
-          class="btn"
-          >View User</a
-        >
       </div>
 
       <!-- Card -->
@@ -269,18 +248,6 @@ else {
         }}
       </div>
 
-      <RouterLink
-        v-motion-fade
-        :delay="300"
-        :to="{
-          query: route.query,
-          name: 'Home',
-        }"
-        class="btn w-max bg-transparent mx-auto"
-      >
-        <IconBack />
-        <span>Go back home</span>
-      </RouterLink>
     </div>
   </Transition>
 </template>
