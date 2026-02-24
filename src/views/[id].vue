@@ -1,6 +1,14 @@
 <script lang="ts" setup>
 import { useWebSocket, useTitle, useFavicon } from "@vueuse/core"
-import { computed, ref, reactive, watchEffect, onBeforeUnmount } from "vue"
+import {
+  computed,
+  ref,
+  reactive,
+  watchEffect,
+  onBeforeUnmount,
+  onMounted,
+  nextTick,
+} from "vue"
 import { onBeforeRouteLeave } from "vue-router"
 
 // Components
@@ -12,6 +20,10 @@ import type { LanyardData } from "../types/lanyard"
 const socketLoaded = ref(false)
 const imageError = ref(false)
 const heartbeatInterval = ref<number | null>(null)
+const BASE_LAYOUT_WIDTH = 420
+const scaleViewport = ref<HTMLElement | null>(null)
+const layoutScale = ref(1)
+let scaleResizeObserver: ResizeObserver | null = null
 
 const user = reactive({ error: false, data: {} }) as {
   error: boolean
@@ -98,10 +110,44 @@ const getPlayingStatus = computed(() => {
   }
 })
 
+const scaleStyle = computed(() => ({
+  width: `${BASE_LAYOUT_WIDTH}px`,
+  transform: `scale(${layoutScale.value})`,
+  transformOrigin: "top center",
+}))
+
+const syncScale = () => {
+  if (!scaleViewport.value) return
+
+  const availableWidth = scaleViewport.value.clientWidth
+  layoutScale.value = Math.min(1, availableWidth / BASE_LAYOUT_WIDTH)
+}
+
 // Watchers
 watchEffect(() => {
   useTitle(`${getUser.value.username}'s Status - Lanyard Visualizer`)
   useFavicon(getUser.value.avatar)
+})
+
+onMounted(async () => {
+  await nextTick()
+  syncScale()
+
+  if (typeof ResizeObserver !== "undefined") {
+    scaleResizeObserver = new ResizeObserver(syncScale)
+    if (scaleViewport.value) scaleResizeObserver.observe(scaleViewport.value)
+  } else {
+    window.addEventListener("resize", syncScale)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (scaleResizeObserver) {
+    scaleResizeObserver.disconnect()
+    scaleResizeObserver = null
+  } else {
+    window.removeEventListener("resize", syncScale)
+  }
 })
 
 // Connect to Lanyard socket when the app is mounted
@@ -183,54 +229,58 @@ else {
 
 <template>
   <Transition name="fade" mode="out-in">
-    <div
-      class="flex flex-col justify-center w-full mx-auto px-8 md:px-0 h-screen space-y-4 md:w-4/12 2xl:w-4/12"
-    >
-      <!-- Title -->
-      <div class="flex items-center">
-        <div class="flex space-x-4 items-center">
-          <div class="flex-shrink-0">
-            <img
-              :src="getUser.avatar || ''"
-              class="rounded-full h-14 shadow-lg w-14"
-              width="24"
-              height="24"
-              draggable="false"
-              alt="user avatar"
-              @load="imageError = false"
-              @error="imageError = true"
+    <div ref="scaleViewport" class="w-full h-screen overflow-hidden">
+      <div class="h-full flex justify-center pt-8">
+        <div class="space-y-4" :style="scaleStyle">
+          <!-- Title -->
+          <div class="flex items-center">
+            <div class="flex space-x-4 items-center">
+              <div class="flex-shrink-0">
+                <img
+                  :src="getUser.avatar || ''"
+                  class="rounded-full h-14 shadow-lg w-14"
+                  width="24"
+                  height="24"
+                  draggable="false"
+                  alt="user avatar"
+                  @load="imageError = false"
+                  @error="imageError = true"
+                />
+              </div>
+
+              <h1 class="font-semibold text-xl leading-tight">
+                Jann
+              </h1>
+            </div>
+          </div>
+
+          <!-- Card -->
+          <div
+            v-if="
+              Object.values(getPlayingStatus || {}).filter((item) => item)
+                ?.length > 0
+            "
+          >
+            <Card
+              :name="getPlayingStatus.name"
+              :largeImage="getPlayingStatus.largeImage || ''"
+              :smallImage="getPlayingStatus.smallImage || ''"
+              :state="getPlayingStatus.state"
+              :details="getPlayingStatus.details"
+              :timestamps="getPlayingStatus.timestamps"
+              :is-spotify="getPlayingStatus.spotify === true"
+              :track-id="getPlayingStatus.trackId"
             />
           </div>
 
-          <h1 class="font-semibold text-xl leading-tight">
-            Jann
-          </h1>
+          <div
+            v-else-if="isConnecting === false"
+            class="rounded-lg bg-white/5 text-white/30 text-sm p-4"
+          >
+            User is not playing anything.
+          </div>
         </div>
       </div>
-
-      <!-- Card -->
-      <div
-        v-if="
-          Object.values(getPlayingStatus || {}).filter((item) => item)?.length >
-          0
-        "
-      >
-        <Card
-          :name="getPlayingStatus.name"
-          :largeImage="getPlayingStatus.largeImage || ''"
-          :smallImage="getPlayingStatus.smallImage || ''"
-          :state="getPlayingStatus.state"
-          :details="getPlayingStatus.details"
-          :timestamps="getPlayingStatus.timestamps"
-          :is-spotify="getPlayingStatus.spotify === true"
-          :track-id="getPlayingStatus.trackId"
-        />
-      </div>
-
-      <div v-else-if="isConnecting === false" class="rounded-lg bg-white/5 text-white/30 text-sm p-4">
-        User is not playing anything.
-      </div>
-
     </div>
   </Transition>
 </template>
