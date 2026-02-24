@@ -6,8 +6,6 @@ import {
   reactive,
   watchEffect,
   onBeforeUnmount,
-  onMounted,
-  nextTick,
 } from "vue"
 import { onBeforeRouteLeave } from "vue-router"
 
@@ -20,10 +18,6 @@ import type { LanyardData } from "../types/lanyard"
 const socketLoaded = ref(false)
 const imageError = ref(false)
 const heartbeatInterval = ref<number | null>(null)
-const BASE_LAYOUT_WIDTH = 420
-const scaleViewport = ref<HTMLElement | null>(null)
-const layoutScale = ref(1)
-let scaleResizeObserver: ResizeObserver | null = null
 
 const user = reactive({ error: false, data: {} }) as {
   error: boolean
@@ -110,44 +104,10 @@ const getPlayingStatus = computed(() => {
   }
 })
 
-const scaleStyle = computed(() => ({
-  width: `${BASE_LAYOUT_WIDTH}px`,
-  transform: `scale(${layoutScale.value})`,
-  transformOrigin: "top center",
-}))
-
-const syncScale = () => {
-  if (!scaleViewport.value) return
-
-  const availableWidth = scaleViewport.value.clientWidth
-  layoutScale.value = Math.min(1, availableWidth / BASE_LAYOUT_WIDTH)
-}
-
 // Watchers
 watchEffect(() => {
   useTitle(`${getUser.value.username}'s Status - Lanyard Visualizer`)
   useFavicon(getUser.value.avatar)
-})
-
-onMounted(async () => {
-  await nextTick()
-  syncScale()
-
-  if (typeof ResizeObserver !== "undefined") {
-    scaleResizeObserver = new ResizeObserver(syncScale)
-    if (scaleViewport.value) scaleResizeObserver.observe(scaleViewport.value)
-  } else {
-    window.addEventListener("resize", syncScale)
-  }
-})
-
-onBeforeUnmount(() => {
-  if (scaleResizeObserver) {
-    scaleResizeObserver.disconnect()
-    scaleResizeObserver = null
-  } else {
-    window.removeEventListener("resize", syncScale)
-  }
 })
 
 // Connect to Lanyard socket when the app is mounted
@@ -229,9 +189,9 @@ else {
 
 <template>
   <Transition name="fade" mode="out-in">
-    <div ref="scaleViewport" class="w-full h-screen overflow-hidden">
+    <div class="w-full h-screen overflow-hidden">
       <div class="h-full flex justify-center pt-8">
-        <div class="space-y-4" :style="scaleStyle">
+        <div class="space-y-4 w-[360px]">
           <!-- Title -->
           <div class="flex items-center">
             <div class="flex space-x-4 items-center">

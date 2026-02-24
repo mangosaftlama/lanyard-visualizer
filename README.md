@@ -23,7 +23,7 @@ Just visit [this page](https://visualizer.eggsy.xyz) and use the input to check 
 
 ### 🌟 Host it yourself
 
-I don't collect any kind of data, there's no third-party plugins (except the Google Fonts), no cookies, nothing! If you still don't want to use the service, you can download from the source and host it yourself.
+I don't collect any kind of data, there's no third-party plugins, no cookies, nothing! If you still don't want to use the service, you can download from the source and host it yourself.
 
 - Clone this repo: `git clone https://github.com/eggsy/lanyard-visualizer`
   - Change directory to the new folder: `cd lanyard-visualizer`
