@@ -18,45 +18,32 @@ const props = defineProps({
 // Use a reference to generate reactive time.
 const timestamp = useTimestamp()
 
+const formatMinutesSeconds = (milliseconds: number) => {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return [minutes, seconds].map((time) => `0${time}`.slice(-2)).join(":")
+}
+
 // Computed methods
 const getTimeElapsed = computed(() => {
-  const currentTime = timestamp.value
-  const timeElapsed = currentTime - props.start
-
-  const timeElapsedArray = [
-    Math.round((timeElapsed / (1000 * 60)) % 60),
-    Math.round((timeElapsed / 1000) % 60),
-  ]
-
-  const mapFunction = (time: number) => `0${time}`.slice(-2)
-  return timeElapsedArray.map(mapFunction).join(":")
+  const timeElapsed = timestamp.value - props.start
+  return formatMinutesSeconds(timeElapsed)
 })
 
 const getTimeLeft = computed(() => {
-  const currentTime = timestamp.value
-  const timeLeft = props.end - (props.start || currentTime)
-
-  const timeLeftArray = [
-    Math.round((timeLeft / (1000 * 60)) % 60),
-    Math.round((timeLeft / 1000) % 60),
-  ]
-
-  const mapFunction = (time: number) => `0${time}`.slice(-2)
-  return timeLeftArray.map(mapFunction).join(":")
+  const totalDuration = props.end - props.start
+  return formatMinutesSeconds(totalDuration)
 })
 
 const getStyles = computed(() => {
   const total = props.end - props.start
   const progress = 100 - (100 * (props.end - timestamp.value)) / total
 
-  if (progress > 100)
-    return {
-      width: "100%",
-    }
-  else
-    return {
-      width: `${progress.toFixed(2)}%`,
-    }
+  const clampedProgress = Math.max(0, Math.min(100, progress))
+  return {
+    width: `${clampedProgress.toFixed(2)}%`,
+  }
 })
 </script>
 
